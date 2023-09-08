@@ -1,49 +1,45 @@
-use esp32c3_hal::gpio::{InputPin, OutputPin};
-use esp32c3_hal::{
+use hal::{
+    gpio::{NO_PIN, OutputPin},
     peripherals::SPI2,
-    gpio::NO_PIN,
-    spi::{Spi, HalfDuplexMode, SpiMode, HalfDuplexReadWrite, SpiDataMode, Command, Address, Error}, system::PeripheralClockControl, clock::Clocks,
+    spi::{HalfDuplexMode, SpiDataMode, Error, SpiMode},
+    spi::master::{Spi, HalfDuplexReadWrite, Command, Address},
     prelude::_fugit_RateExtU32, 
-    peripheral::Peripheral,
-};
-use esp_println::println;
+    clock::Clocks,
+}; 
 
-pub struct ThermoControl<TG: OutputPin> {
+use esp_println::println;
+use crate::hardware_concierge::bsp::*;
+
+pub struct ThermoControl {
     spi: Spi<'static, SPI2, HalfDuplexMode>,
-    toggler: TG 
+    toggler: HeaterToggler
 }
 
-impl <TG: OutputPin> ThermoControl<TG>{
-    pub fn new<
-        SCK: OutputPin,
-        MISO: OutputPin + InputPin,
-        CS: OutputPin,
-    >(
-        spi: impl Peripheral<P = SPI2> + 'static,
-        sclk: impl Peripheral<P = SCK> + 'static,
-        miso: impl Peripheral<P = MISO> + 'static,
-        cs: impl Peripheral<P = CS> + 'static,
-        toggler: TG,
-        peripheral_clock_control: &mut PeripheralClockControl,
+impl ThermoControl {
+        pub fn new(
+        spi: ThermocoupleAfeSpi,
+        sclk: impl Into<ThermocoupleAfeSclk>,
+        miso: impl Into<ThermocoupleAfeMiso>,
+        cs: impl Into<ThermocoupleAfeCs>,
+        toggler: impl Into<HeaterToggler>,
         clocks: &Clocks,
     ) -> Self {
         let hd_spi = Spi::new_half_duplex(
             spi,
-            Some(sclk),
+            Some(sclk.into()),
             NO_PIN,
-            Some(miso),
+            Some(miso.into()),
             NO_PIN,
             NO_PIN,
-            Some(cs),
+            Some(cs.into()),
             4u32.MHz(),
             SpiMode::Mode0,
-            peripheral_clock_control,
             clocks
         );
 
         ThermoControl {
             spi: hd_spi,
-            toggler: toggler
+            toggler: toggler.into()
         }
     }
 

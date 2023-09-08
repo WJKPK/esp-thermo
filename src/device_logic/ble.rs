@@ -7,23 +7,12 @@ use bleps::{
     asynch::Ble,
     attribute_server::NotificationData,
     gatt, };
+use hal::peripherals::BT;
 use esp_backtrace as _;
 use esp_println::println;
 use esp_wifi::{
     ble::controller::asynch::BleConnector, EspWifiInitialization,
 };
-use esp32c3_hal::radio::Bluetooth;
-
-pub struct BluetoothCallbacks {
-    pub temp_read: fn(usize, &mut [u8]) -> usize,
-    pub profile_setup: fn(usize, &[u8]),
-}
-
-impl BluetoothCallbacks {
-    pub fn new(temp_read: fn(usize, &mut [u8]) -> usize, profile_setup: fn(usize, &[u8])) -> Self {
-        Self { temp_read, profile_setup}
-    }
-}
 
 unsafe fn any_as_u8_slice<T: Sized>(p: &T) -> &[u8] {
     ::core::slice::from_raw_parts(
@@ -33,7 +22,7 @@ unsafe fn any_as_u8_slice<T: Sized>(p: &T) -> &[u8] {
 }
 
 #[embassy_executor::task]
-pub async fn run(init: EspWifiInitialization, mut bluetooth: Bluetooth) {
+pub async fn run(init: EspWifiInitialization, mut bluetooth: BT) {
     let connector = BleConnector::new(&init, &mut bluetooth);
     let mut ble = Ble::new(connector, esp_wifi::current_millis);
     println!("Connector created");
@@ -47,7 +36,7 @@ pub async fn run(init: EspWifiInitialization, mut bluetooth: Bluetooth) {
                 create_advertising_data(&[
                     AdStructure::Flags(LE_GENERAL_DISCOVERABLE | BR_EDR_NOT_SUPPORTED),
                     AdStructure::ServiceUuids16(&[Uuid::Uuid16(0x1809)]),
-                    AdStructure::CompleteLocalName(examples_util::SOC_NAME),
+                    AdStructure::CompleteLocalName("ESP32C3"),
                 ])
                 .unwrap()
             )
@@ -70,13 +59,13 @@ pub async fn run(init: EspWifiInitialization, mut bluetooth: Bluetooth) {
         gatt!([service {
             uuid: "937312e0-2354-11eb-9f10-fbc30a62cf38",
             characteristics: [
-                characteristic { uuid: "937312e0-2354-11eb-9f10-fbc30a62cf38",
+                characteristic { uuid: "937312e1-2354-11eb-9f10-fbc30a62cf38",
                     name: "temperature",
                     read: rf,
                     notify: true,
                 },
                 characteristic {
-                    uuid: "957312e0-2354-11eb-9f10-fbc30a62cf38",
+                    uuid: "957312e2-2354-11eb-9f10-fbc30a62cf38",
                     write: wf2,
                 }
             ],
@@ -88,6 +77,7 @@ pub async fn run(init: EspWifiInitialization, mut bluetooth: Bluetooth) {
             let mut data = [0u8; 2];
             let temperature: &[u8] = unsafe { any_as_u8_slice(&temperature)};
             data.copy_from_slice(temperature);
+            println!("Notification...");
             NotificationData::new(temperature_handle, &data)
         };
         
